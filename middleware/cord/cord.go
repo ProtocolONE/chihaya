@@ -43,8 +43,7 @@ type Config struct {
 
 func (cfg Config) LogFields() log.Fields {
 
-	return log.Fields{
-	}
+	return log.Fields{}
 }
 
 type hook struct {

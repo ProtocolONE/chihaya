@@ -2,21 +2,21 @@ package stat
 
 import (
 	"context"
-	"fmt"
-	"time"
-	"net/url"
-	"errors"
-	"strings"
-	"strconv"
 	"encoding/binary"
+	"errors"
+	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
 
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/ProtocolONE/chihaya/bittorrent"
+	"github.com/ProtocolONE/chihaya/frontend/udp"
 	"github.com/ProtocolONE/chihaya/middleware"
 	"github.com/ProtocolONE/chihaya/pkg/log"
 	"github.com/gomodule/redigo/redis"
-	"github.com/ProtocolONE/chihaya/frontend/udp"
 )
 
 // Name is the name by which this middleware is registered with Chihaya.
@@ -54,9 +54,10 @@ func (cfg Config) LogFields() log.Fields {
 }
 
 type hook struct {
-	cfg     Config
+	cfg       Config
 	redisPool *redis.Pool
-	gen			*udp.ConnectionIDGenerator
+	gen       *udp.ConnectionIDGenerator
+	ticker    *time.Ticker
 }
 
 func NewHook(cfg Config) (middleware.Hook, error) {
@@ -101,23 +102,131 @@ func NewHook(cfg Config) (middleware.Hook, error) {
 	}
 
 	h := &hook{
-		cfg:     cfg,
+		cfg:       cfg,
 		redisPool: redisPool,
-		gen: udp.NewConnectionIDGenerator(""),
+		gen:       udp.NewConnectionIDGenerator(""),
+		ticker:    time.NewTicker(time.Hour),
 	}
+
+	go func() {
+		for _ = range h.ticker.C {
+			h.collectStat()
+		}
+	}()
 
 	return h, nil
 }
 
 type statInfo struct {
-	downloaded     uint64
-	uploaded       uint64
-	left           uint64
-	connId		   uint64
-	userId   	   string
-	infoHash       string
-	status         uint8
-	timestamp      time.Time
+	downloaded uint64
+	uploaded   uint64
+	left       uint64
+	connId     uint64
+	userId     string
+	infoHash   string
+	status     uint8
+	timestamp  time.Time
+}
+
+func hGetAll(redisConn redis.Conn, key string) (interface{}, error) {
+
+	data, err := redisConn.Do("HGETALL", key)
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
+func loadUserData(redisConn redis.Conn, userId string) (map[string]map[string]map[string]string, error) {
+
+	reply, err := hGetAll(redisConn, userId)
+	userData, err := redis.ByteSlices(reply, err)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(userData)%2 != 0 {
+		return nil, nil
+	}
+
+	events := make(map[string]map[string]map[string]string)
+	for i := 0; i < len(userData); i += 2 {
+
+		parts := strings.Split(string(userData[i]), ".")
+		if len(parts) != 3 {
+			continue
+		}
+
+		infoHash := parts[0]
+		sessionId := parts[1]
+		name := parts[2]
+		if events[infoHash] == nil {
+			events[infoHash] = make(map[string]map[string]string)
+		}
+		if events[infoHash][sessionId] == nil {
+			events[infoHash][sessionId] = make(map[string]string)
+		}
+		events[infoHash][sessionId][name] = string(userData[i+1])
+	}
+
+	return events, nil
+}
+
+func (h *hook) collectStat() error {
+
+	redisConn := h.redisPool.Get()
+	defer redisConn.Close()
+
+	reply, err := redisConn.Do("SMEMBERS", "lastUpdated")
+	lastUpdated, err := redis.Strings(reply, err)
+	if err != nil {
+		return err
+	}
+
+	for _, userId := range lastUpdated {
+
+		events, err := loadUserData(redisConn, userId)
+		if err != nil {
+			return err
+		}
+
+		for hashinfo, sessions := range events {
+
+			reply, err = redisConn.Do("HGET", "hashinfo", hashinfo)
+			gameId, err := redis.String(reply, err)
+			if err != nil {
+				return err
+			}
+
+			for _, names := range sessions {
+
+				status := names["status"]
+				if status == "stopped" {
+					uploaded := names["uploaded"]
+					downloaded := names["downloaded"]
+					totalKey := "total:" + userId
+
+					redisConn.Send("MULTI")
+					redisConn.Send("ZINCRBY", "rating:downloaded", downloaded, userId)
+					redisConn.Send("ZINCRBY", "rating:uploaded", uploaded, userId)
+					redisConn.Send("ZINCRBY", "rating:downloaded:"+gameId, downloaded, userId)
+					redisConn.Send("ZINCRBY", "rating:uploaded:"+gameId, uploaded, userId)
+					redisConn.Send("HINCRBY", totalKey, "uploaded", uploaded)
+					redisConn.Send("HINCRBY", totalKey, "downloaded", downloaded)
+					redisConn.Send("HINCRBY", totalKey, "uploaded:"+gameId, uploaded)
+					redisConn.Send("HINCRBY", totalKey, "downloaded:"+gameId, downloaded)
+
+					_, err = redisConn.Do("EXEC")
+					if err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func (h *hook) saveStat(si statInfo) error {
@@ -126,21 +235,19 @@ func (h *hook) saveStat(si statInfo) error {
 	defer redisConn.Close()
 
 	stats := []string{"none", "completed", "started", "stopped"}
-
 	field := fmt.Sprintf("%s.%d", si.infoHash, si.connId)
-	_, err := redisConn.Do("HMSET", si.userId, 
-		field + ".downloaded", si.downloaded, 
-		field + ".left", si.left, 
-		field + ".uploaded", si.uploaded, 
-		field + ".status", stats[si.status], 
-		field + ".time", si.timestamp)
 
-	if err != nil {
-		fmt.Println(err.Error())
-		return err
-	}
+	err := redisConn.Send("MULTI")
+	err = redisConn.Send("HMSET", si.userId,
+		field+".downloaded", si.downloaded,
+		field+".left", si.left,
+		field+".uploaded", si.uploaded,
+		field+".status", stats[si.status],
+		field+".time", si.timestamp)
 
-	_, err = redisConn.Do("SADD", "lastUpdated", si.userId)
+	err = redisConn.Send("SADD", "lastUpdated", si.userId)
+
+	_, err = redisConn.Do("EXEC")
 	return err
 }
 
@@ -158,7 +265,6 @@ func (h *hook) HandleAnnounce(ctx context.Context, req *bittorrent.AnnounceReque
 	si.timestamp = time.Now()
 
 	h.saveStat(si)
-
 	return ctx, nil
 }
 
