@@ -255,16 +255,20 @@ func (h *hook) HandleAnnounce(ctx context.Context, req *bittorrent.AnnounceReque
 
 	var si statInfo
 
-	si.downloaded = req.Downloaded
-	si.uploaded = req.Uploaded
-	si.left = req.Left
-	si.status = uint8(req.Event)
-	si.infoHash = req.InfoHash.String()
-	si.userId = req.UserID
-	si.connId = req.TransactionID
-	si.timestamp = time.Now()
+	if len(req.UserID) > 0 && req.TransactionID > 0 {
 
-	h.saveStat(si)
+		si.downloaded = req.Downloaded
+		si.uploaded = req.Uploaded
+		si.left = req.Left
+		si.status = uint8(req.Event)
+		si.infoHash = req.InfoHash.String()
+		si.userId = req.UserID
+		si.connId = req.TransactionID
+		si.timestamp = time.Now()
+
+		h.saveStat(si)
+	}
+
 	return ctx, nil
 }
 
