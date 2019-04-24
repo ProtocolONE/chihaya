@@ -2,7 +2,6 @@ package stat
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"net/url"
@@ -114,6 +113,7 @@ func NewHook(cfg Config) (middleware.Hook, error) {
 		}
 	}()
 
+	h.collectStat()
 	return h, nil
 }
 
@@ -121,7 +121,7 @@ type statInfo struct {
 	downloaded uint64
 	uploaded   uint64
 	left       uint64
-	connId     uint64
+	connId     uint32
 	userId     string
 	infoHash   string
 	status     uint8
@@ -260,8 +260,8 @@ func (h *hook) HandleAnnounce(ctx context.Context, req *bittorrent.AnnounceReque
 	si.left = req.Left
 	si.status = uint8(req.Event)
 	si.infoHash = req.InfoHash.String()
-	si.userId = req.Peer.ID.String()
-	si.connId = binary.BigEndian.Uint64(h.gen.Generate(req.Peer.IP.IP, time.Now()))
+	si.userId = req.UserID
+	si.connId = req.TransactionID
 	si.timestamp = time.Now()
 
 	h.saveStat(si)
