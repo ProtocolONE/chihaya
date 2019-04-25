@@ -2,6 +2,7 @@ package stat
 
 import (
 	"context"
+	"crypto/sha1"
 	"errors"
 	"fmt"
 	"net/url"
@@ -43,12 +44,14 @@ var ErrTorrentUnapproved = bittorrent.ClientError("unapproved torrent")
 
 type Config struct {
 	RedisUrl string `yaml:"redis_broker"`
+	AuthSalt string `yaml:"auth_salt"`
 }
 
 func (cfg Config) LogFields() log.Fields {
 
 	return log.Fields{
 		"redis_broker": cfg.RedisUrl,
+		"auth_salt":    cfg.AuthSalt,
 	}
 }
 
@@ -251,11 +254,24 @@ func (h *hook) saveStat(si statInfo) error {
 	return err
 }
 
+func (h *hook) authUser(userID string, userHash string) bool {
+
+	if len(userHash) != sha1.Size*2 {
+		return false
+	}
+
+	test := []byte(userID + h.cfg.AuthSalt)
+	legitHash := sha1.Sum(test)
+	hash := fmt.Sprintf("%x", legitHash)
+
+	return userHash == hash
+}
+
 func (h *hook) HandleAnnounce(ctx context.Context, req *bittorrent.AnnounceRequest, resp *bittorrent.AnnounceResponse) (context.Context, error) {
 
 	var si statInfo
 
-	if len(req.UserID) > 0 && req.TransactionID > 0 {
+	if len(req.UserID) > 0 && req.TransactionID > 0 && h.authUser(req.UserID, req.UserHash) {
 
 		si.downloaded = req.Downloaded
 		si.uploaded = req.Uploaded

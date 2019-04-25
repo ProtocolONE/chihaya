@@ -194,6 +194,7 @@ chihaya:
   - name: stat
     options:
       redis_broker: "redis://127.0.0.1:6379/0"
+      auth_salt: "dGFzdHlzYWx0"
 
   geoip:
     database: "../../geo/data/GeoLite2-City.mmdb"
