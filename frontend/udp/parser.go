@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 
 	"github.com/ProtocolONE/chihaya/bittorrent"
@@ -105,9 +106,37 @@ func ParseAnnounce(r Request, v6Action bool, opts ParseOptions) (*bittorrent.Ann
 		return nil, err
 	}
 
+	var userID string
+	var userHash string
+	var transactionID uint32
+
+	if len(r.Packet) > 100 {
+
+		var reqStr string
+
+		transactionID = binary.BigEndian.Uint32(r.Packet[12:16])
+		extensions := byte(r.Packet[98])
+		reqStrLen := byte(r.Packet[99])
+
+		if extensions&1 != 0 {
+			//skip UDP auth part if it's presented
+			reqStr = string(r.Packet[100+reqStrLen+8+1 : len(r.Packet)])
+		} else {
+			reqStr = string(r.Packet[100:len(r.Packet)])
+		}
+
+		if extensions&2 != 0 {
+			userID = getReqValue(reqStr, "userId")
+			userHash = getReqValue(reqStr, "hash")
+		}
+	}
+
 	request := &bittorrent.AnnounceRequest{
 		Event:           eventIDs[eventID],
 		InfoHash:        bittorrent.InfoHashFromBytes(infohash),
+		UserID:          userID,
+		UserHash:        userHash,
+		TransactionID:   transactionID,
 		NumWant:         uint32(numWant),
 		Left:            left,
 		Downloaded:      downloaded,
@@ -128,6 +157,26 @@ func ParseAnnounce(r Request, v6Action bool, opts ParseOptions) (*bittorrent.Ann
 	}
 
 	return request, nil
+}
+
+func getReqValue(req string, name string) string {
+
+	name += "="
+	pos1 := strings.Index(req, name)
+
+	if pos1 != -1 {
+
+		pos2 := strings.Index(req[pos1:len(req)], "&")
+		if pos2 == -1 {
+			pos2 = len(req)
+		} else {
+			pos2 += pos1
+		}
+
+		return req[pos1+len(name) : pos2]
+	}
+
+	return ""
 }
 
 type buffer struct {

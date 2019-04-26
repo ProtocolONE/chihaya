@@ -93,6 +93,9 @@ func (i InfoHash) RawString() string {
 type AnnounceRequest struct {
 	Event           Event
 	InfoHash        InfoHash
+	UserID          string
+	UserHash        string
+	TransactionID   uint32
 	Compact         bool
 	EventProvided   bool
 	NumWantProvided bool

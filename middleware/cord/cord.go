@@ -39,14 +39,11 @@ func (d driver) NewHook(optionBytes []byte) (middleware.Hook, error) {
 var ErrTorrentUnapproved = bittorrent.ClientError("unapproved torrent")
 
 type Config struct {
-	Storage string `yaml:"storage"`
 }
 
 func (cfg Config) LogFields() log.Fields {
 
-	return log.Fields{
-		"storage": cfg.Storage,
-	}
+	return log.Fields{}
 }
 
 type hook struct {
