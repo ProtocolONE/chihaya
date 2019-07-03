@@ -67,6 +67,8 @@ spec:
         - "--debug"
         - "--json"
         ports:
+        - name: restapi
+          containerPort: {{ .Values.backend.port}}    
         - name: bittorrent-http
           containerPort: {{ $v := .Values.config.chihaya.http.addr | split ":" }}{{ $v._1 }}
           protocol: TCP

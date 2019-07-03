@@ -1,8 +1,21 @@
 replicaCount: 1
 
+enableCertIssuer: true
+
+ingress:
+  hostname: chihaya.tst.protocol.one
+  hostnamePrefix:
+  path: /
+
 backend:
   image: p1hub/p1chihaya
   imageTag: latest
+  port: 5001
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 5001
+    protocol: TCP
 
 image:
   repository: p1hub/p1paybilling

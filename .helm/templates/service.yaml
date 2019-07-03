@@ -1,7 +1,9 @@
+{{- $deployment := .Values.backend -}}
+{{- $svcName := printf "%s" .Release.Name }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ template "fullname" . }}
+  name: {{ $svcName }}
   labels:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
   annotations:
@@ -11,6 +13,10 @@ metadata:
 spec:
   type: {{ .Values.service.type }}
   ports:
+  - name: restapi
+    port: {{ $deployment.service.port }}
+    targetPort: {{ $deployment.port }}
+    protocol: {{ $deployment.service.protocol }} 
   - name: bittorrent-http
     port: {{ $v := .Values.config.chihaya.http.addr | split ":" }}{{ $v._1 }}
     targetPort: {{ $v := .Values.config.chihaya.http.addr | split ":" }}{{ $v._1 }}
