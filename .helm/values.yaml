@@ -205,9 +205,9 @@ config:
     #    redis_broker: "redis://127.0.0.1:6379/0"
     #    auth_salt: "dGFzdHlzYWx0"
 
-    #geoip:
-    #  database: "/etc/geo/GeoLite2-City.mmdb"
-    #  radius: 1000
+    geoip:
+      database: "/etc/geoip/GeoLite2-City.mmdb"
+      radius: 1000
 
 env:
  - MONGO_HOST

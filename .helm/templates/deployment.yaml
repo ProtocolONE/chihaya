@@ -1,3 +1,38 @@
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  annotations:
+    "helm.sh/resource-policy": keep
+  name: {{ .Release.Name }}-geoip
+  labels:
+    app: {{ .Release.Name }}
+    role: geoip
+spec:
+  persistentVolumeReclaimPolicy: Retain
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  nfs:
+    server: nfs-share
+    path: "/home/nfsroot/k8sdata/{{ .Release.Name }}-geoip"
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: {{ .Release.Name }}-geoip
+spec:
+  storageClassName: ""
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}  
+      role: "geoip"
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---      
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -20,6 +55,9 @@ spec:
       - name: chihayakeys
         secret: 
           secretName: {{ .Release.Name }}-keys
+      - name: {{ .Release.Name }}-geoip
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-geoip
       containers:
       - name: {{ .Chart.Name }}
         image: "{{ .Values.backend.image }}:{{ .Values.backend.imageTag }}"
@@ -54,5 +92,8 @@ spec:
           mountPath: /etc/chihaya
         - name: chihayakeys
           mountPath: /etc/chihaya/ssl
+        - name: {{ .Release.Name }}-geoip
+          mountPath: /etc/geoip/
+          readOnly: false
         resources:
 {{ toYaml .Values.resources | indent 10 }}
