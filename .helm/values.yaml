@@ -2,6 +2,9 @@ replicaCount: 1
 
 enableCertIssuer: true
 
+certIssuer:
+  email: admin@protocol.one
+
 ingress:
   hostname: chihaya.tst.protocol.one
   hostnamePrefix:
