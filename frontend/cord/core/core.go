@@ -47,7 +47,7 @@ func fillMemDB() error {
 		return err
 	}
 
-	memManager := database.NewMemTorrentManager()
+	memManager := database.GetMemTorrentManager()
 
 	for _, t := range torrents {
 
