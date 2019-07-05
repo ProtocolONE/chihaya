@@ -1,56 +1,32 @@
 language: go
 go:
-  - 1.11.x
-sudo: false
-matrix:
+- 1.11.x
+
+stages:
+- test
+- name: deploy
+  if: branch IN (master, develop)
+
+jobs:
   include:
-  # Using vendored dependencies
-  - install:
-    - go get -u golang.org/x/lint/golint
-    - go get -u golang.org/x/tools/cmd/...
+  - stage: test
+    install: true
     script:
-    - export GO111MODULE=on
-    - go mod download
-    - go test -v -race $(go list ./...)
-    - go vet $(go list ./...)
-    #- diff <(goimports -local github.com/ProtocolONE/chihaya -d $(find . -type f -name '*.go' -not -path "./vendor/*")) <(printf "")
-    - (for d in $(go list ./...); do diff <(golint $d) <(printf "") || exit 1;  done)
-    - go install github.com/ProtocolONE/chihaya/cmd/chihaya
-    - chihaya --config=example_config.yaml --debug&
-    - pid=$!
-    - sleep 2 # wait for chihaya to start up (gross)
-    - chihaya e2e --debug
-    - kill $pid
-  # Using HEAD of dependencies
-  - install:
-    - go get -t ./...
-    - go get -u golang.org/x/lint/golint
-    - go get -u golang.org/x/tools/cmd/...
+    - echo "tests"
+    #after_success:
+    #- bash <(curl -s https://codecov.io/bash)
+  - stage: deploy
+    services: docker
+    install: true
     script:
-    - go test -v -race $(go list ./...)
-    - go vet $(go list ./...)
-    #- diff <(goimports -local github.com/ProtocolONE/chihaya -d $(find . -type f -name '*.go' -not -path "./vendor/*")) <(printf "")
-    - (for d in $(go list ./...); do diff <(golint $d) <(printf "") || exit 1;  done)
-    - go install github.com/ProtocolONE/chihaya/cmd/chihaya
-    - chihaya --config=example_config.yaml --debug&
-    - pid=$!
-    - sleep 2 # wait for chihaya to start up (gross)
-    - chihaya e2e --debug
-    - kill $pid
-  allow_failures:
-  # Using HEAD of dependencies
-  - install:
-    - go get -t ./...
-    - go get -u golang.org/x/lint/golint
-    - go get -u golang.org/x/tools/cmd/...
-    script:
-    - go test -v -race $(go list ./...)
-    - go vet $(go list ./...)
-    #- diff <(goimports -local github.com/ProtocolONE/chihaya -d $(find . -type f -name '*.go' -not -path "./vendor/*")) <(printf "")
-    - (for d in $(go list ./...); do diff <(golint $d) <(printf "") || exit 1;  done)
-    - go install github.com/ProtocolONE/chihaya/cmd/chihaya
-    - chihaya --config=example_config.yaml --debug&
-    - pid=$!
-    - sleep 2 # wait for chihaya to start up (gross)
-    #- chihaya e2e --debug
-    - kill $pid
+      - docker run -it
+        -e JENKINS_AUTH_TOKEN=$JENKINS_AUTH_TOKEN
+        -e JENKINS_BUILD_TOKEN=$JENKINS_BUILD_TOKEN
+        -e JENKINS_BUILD_PROJECT=$TRAVIS_REPO_SLUG
+        -e JENKINS_BUILD_BRANCH=$TRAVIS_BRANCH
+        p1hub/p1jenkinstrigger
+
+notifications:
+  email: false
+  slack:
+    secure: SHnhIz7Yjcvq2FgRo1O54ggjsO1Bz3ujH/piDHnrJvqNTU+0qkW8W3ZzgUegTfRoF0y52s5qsTHXe/EFj2cs6G6xFNZPiSLijzJxrKRBR/qp9C0vBfWafXwGc34RUPSE1Puy/8kDSU0rdGKGkoJwmPp/35EvM3HvIqU6Jak7ZahaSeR966E0jeHCvNlMFyiXnXMExcSjYZfsbx5Iw2BFlKGZ4sR55CdKuKQ+skmFLmP/WCUuusOhs/wR5Q8lfV2Hqp4ibA+z4SJxIqtB35WeGM7xfH+4HysI6yFVbli8ib6lROdyn51jUyYxblDQdU/md3eTmw62yjYwNdYFRNi0WcMy7utJQTfGwRO1Enpz/2leot9EuQZnpl5w8hT24xe8BfCM8pVF40aDm9KzLJJexdLwEoKD9hOs9SlqHpFHZxedRg443QqxuuB0ADnkT1B9XmpbcOTfu32k2J+Z/Oc9P+LIm0tM0kqHyyNtm49iRsoIhQxr9KlImELaywvI2uVvMuPRkWeZNWn/jKBRTh2ra0ukNeV2g4DH5ZdI6A03ZWnM+XwdumLsq0Qttngr0/umke0NJTtMC0/ZKktXC0A5UrXt5UmaOjLYJ1uSQ3uj9R4ukoyVi9RoWcrtVWmyD4ftv+af0KaSdhKjnQKt3fRs9hbIfQg/GhRopwGRxNHeNZQ=
