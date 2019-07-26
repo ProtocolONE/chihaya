@@ -24,6 +24,14 @@ spec:
     - host: {{ .Values.ingress.hostname }}
       http:
         paths:
+          - path: /announce
+            backend:
+              serviceName: {{ $endpointSvc }}
+              servicePort: {{ .Values.service.tcpNodePort }}
+          - path: /scrape
+            backend:
+              serviceName: {{ $endpointSvc }}
+              servicePort: {{ .Values.service.tcpNodePort }}
           - path: {{ .Values.ingress.path }}
             backend:
               serviceName: {{ $endpointSvc }}
