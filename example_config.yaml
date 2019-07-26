@@ -197,5 +197,5 @@ chihaya:
   #    auth_salt: "dGFzdHlzYWx0"
 
   geoip:
-    database: "geo/data/GeoLite2-City.mmdb"
+    database: "D:/Projects/Syncopate/sources/ProtocolONE/chihaya/geo/data/GeoLite2-City.mmdb"
     radius: 1000

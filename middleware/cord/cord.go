@@ -60,7 +60,7 @@ func NewHook(cfg Config) (middleware.Hook, error) {
 
 	h := &hook{
 		cfg:     cfg,
-		manager: database.NewMemTorrentManager(),
+		manager: database.GetMemTorrentManager(),
 	}
 
 	return h, nil

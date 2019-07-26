@@ -155,6 +155,12 @@ func NewMemTorrentManager() *MemTorrentManager {
 	return &MemTorrentManager{}
 }
 
+var _memTorrentManager = NewMemTorrentManager()
+
+func GetMemTorrentManager() *MemTorrentManager {
+	return _memTorrentManager
+}
+
 func (manager *MemTorrentManager) Insert(torrent *models.Torrent) {
 
 	manager.collection.Store(torrent.InfoHash, torrent)
